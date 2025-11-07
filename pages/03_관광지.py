@@ -1,40 +1,65 @@
-
-# Streamlit app: Seoul Top10 tourist spots (Folium map)
+# Streamlit app: Seoul Top10 tourist spots (Folium map with improved markers and subway info)
 # Save this file as `streamlit_app.py` and deploy to Streamlit Cloud.
-# The requirements.txt content is included at the bottom of this file (after the triple dashes).
+# The requirements.txt content is included at the bottom of this file.
 
 import streamlit as st
 import folium
 from streamlit_folium import st_folium
-import io
-import json
 
 st.set_page_config(page_title="Seoul Top10 (Folium)", layout="wide")
 
 st.title("🌏 외국인들이 좋아하는 서울 주요 관광지 Top 10 — Folium 지도")
-st.markdown("간단한 설명과 마커를 클릭하면 장소 설명을 볼 수 있어요. 스트림릿 클라우드에 그대로 업로드하면 작동합니다.")
+st.markdown("지도 위 마커를 클릭하면 설명과 지하철역 정보를 볼 수 있어요. 관광지별 상세 이유도 아래에서 볼 수 있습니다.")
 
-# Top10 places (name, lat, lon, short description)
+# Top10 places (name, lat, lon, description, nearest subway)
 PLACES = [
-    {"name": "Gyeongbokgung Palace (경복궁)", "lat": 37.579617, "lon": 126.977041, "desc": "Joseon 왕조의 대표 궁궐 — 역사와 건축을 한눈에."},
-    {"name": "Changdeokgung & Secret Garden (창덕궁)", "lat": 37.582604, "lon": 126.991044, "desc": "궁궐과 비원(후원)의 아름다운 조화."},
-    {"name": "Bukchon Hanok Village (북촌 한옥마을)", "lat": 37.582490, "lon": 126.984962, "desc": "한옥 골목에서 전통 가옥을 체험할 수 있어요."},
-    {"name": "Insadong (인사동)", "lat": 37.574044, "lon": 126.986374, "desc": "한국 공예, 찻집, 기념품 상점이 모인 문화거리."},
-    {"name": "Myeongdong (명동)", "lat": 37.560098, "lon": 126.986979, "desc": "쇼핑과 스트리트푸드를 즐기기 좋은 번화가."},
-    {"name": "N Seoul Tower / Namsan (남산서울타워)", "lat": 37.551169, "lon": 126.988227, "desc": "서울 전망을 한눈에 — 케이블카와 전망대."},
-    {"name": "Hongdae (홍대)", "lat": 37.556264, "lon": 126.922255, "desc": "젊음의 문화, 거리공연, 카페와 클럽의 중심지."},
-    {"name": "Dongdaemun Design Plaza (DDP) (동대문)", "lat": 37.566295, "lon": 127.009340, "desc": "현대 건축과 야간 쇼핑의 명소."},
-    {"name": "COEX / Gangnam (코엑스 · 강남)", "lat": 37.511100, "lon": 127.059684, "desc": "대형 쇼핑몰·아쿠아리움·컨벤션이 모여 있는 곳."},
-    {"name": "Lotte World Tower / Seokchon Lake (롯데월드타워)", "lat": 37.513103, "lon": 127.102538, "desc": "초고층 전망대와 몰, 호수 공원의 조합."},
+    {"name": "Gyeongbokgung Palace (경복궁)", "lat": 37.579617, "lon": 126.977041, 
+     "desc": "조선시대의 정궁으로, 한국 전통 건축미와 근정전, 경회루 등 대표 유적이 있는 곳.",
+     "station": "경복궁역 (3호선)"},
+
+    {"name": "Changdeokgung & Secret Garden (창덕궁)", "lat": 37.582604, "lon": 126.991044, 
+     "desc": "유네스코 세계문화유산으로 지정된 궁궐. 자연과 조화를 이룬 비원(후원)이 특히 유명해요.",
+     "station": "안국역 (3호선)"},
+
+    {"name": "Bukchon Hanok Village (북촌 한옥마을)", "lat": 37.582490, "lon": 126.984962, 
+     "desc": "서울 도심 속 전통 한옥이 잘 보존된 마을로, 인생샷 명소로도 인기!",
+     "station": "안국역 (3호선)"},
+
+    {"name": "Insadong (인사동)", "lat": 37.574044, "lon": 126.986374, 
+     "desc": "전통 찻집, 공예품, 기념품이 즐비한 한국 문화거리로 외국인 관광객에게 인기 만점.",
+     "station": "종각역 (1호선)"},
+
+    {"name": "Myeongdong (명동)", "lat": 37.560098, "lon": 126.986979, 
+     "desc": "서울의 대표 쇼핑거리! 화장품, 패션, 길거리 음식이 즐비한 번화가예요.",
+     "station": "명동역 (4호선)"},
+
+    {"name": "N Seoul Tower / Namsan (남산서울타워)", "lat": 37.551169, "lon": 126.988227, 
+     "desc": "서울의 전망을 한눈에 볼 수 있는 명소로, 야경과 사랑의 자물쇠가 유명하죠.",
+     "station": "명동역 (4호선)"},
+
+    {"name": "Hongdae (홍대)", "lat": 37.556264, "lon": 126.922255, 
+     "desc": "젊음과 예술의 거리로, 버스킹·클럽·카페가 가득한 핫플레이스!",
+     "station": "홍대입구역 (2호선·경의중앙선·공항철도)"},
+
+    {"name": "Dongdaemun Design Plaza (DDP) (동대문)", "lat": 37.566295, "lon": 127.009340, 
+     "desc": "자하 하디드가 설계한 미래형 건축물! 야시장과 쇼핑몰이 인접해요.",
+     "station": "동대문역사문화공원역 (2·4·5호선)"},
+
+    {"name": "COEX / Gangnam (코엑스 · 강남)", "lat": 37.511100, "lon": 127.059684, 
+     "desc": "대형 쇼핑몰, 아쿠아리움, 스타필드 도서관까지 한곳에서 즐길 수 있어요.",
+     "station": "삼성역 (2호선)"},
+
+    {"name": "Lotte World Tower / Seokchon Lake (롯데월드타워)", "lat": 37.513103, "lon": 127.102538, 
+     "desc": "555m 초고층 타워! 전망대와 롯데월드몰, 석촌호수가 어우러진 명소입니다.",
+     "station": "잠실역 (2·8호선)"},
 ]
 
 # Sidebar controls
-st.sidebar.header("지도 설정")
-initial_zoom = st.sidebar.slider("초기 확대 레벨", min_value=10, max_value=16, value=12)
+st.sidebar.header("🗺️ 지도 설정")
+zoom = st.sidebar.slider("초기 확대 레벨", 10, 16, 12)
 center_choice = st.sidebar.selectbox("지도 중심 위치 선택", ["Seoul Center", "Gyeongbokgung", "Gangnam (COEX)"])
-show_list = st.sidebar.checkbox("장소 목록 표시", value=True)
+show_route = st.sidebar.checkbox("관광 루트 선 연결", value=False)
 
-# Determine center coordinates
 if center_choice == "Seoul Center":
     center_lat, center_lon = 37.5665, 126.9780
 elif center_choice == "Gyeongbokgung":
@@ -42,30 +67,32 @@ elif center_choice == "Gyeongbokgung":
 else:
     center_lat, center_lon = 37.511100, 127.059684
 
-# Create folium map
-m = folium.Map(location=[center_lat, center_lon], zoom_start=initial_zoom)
+# Folium map setup with better marker icons
+m = folium.Map(location=[center_lat, center_lon], zoom_start=zoom)
 
-# Add markers
-for p in PLACES:
-    popup_html = f"<b>{p['name']}</b><br>{p['desc']}"
-    folium.Marker(location=[p['lat'], p['lon']], popup=popup_html, tooltip=p['name']).add_to(m)
+for i, p in enumerate(PLACES, start=1):
+    popup_html = f"""<b>{i}. {p['name']}</b><br>{p['desc']}<br><i>🚇 가장 가까운 역: {p['station']}</i>"""
+    folium.Marker(
+        location=[p['lat'], p['lon']],
+        popup=popup_html,
+        tooltip=p['name'],
+        icon=folium.Icon(color='red', icon='star')
+    ).add_to(m)
 
-# Optional: draw lines connecting places (tour path)
-if st.sidebar.checkbox("관광 루트 선 연결", value=False):
+if show_route:
     coords = [[p['lat'], p['lon']] for p in PLACES]
-    folium.PolyLine(coords, weight=3, opacity=0.6).add_to(m)
+    folium.PolyLine(coords, color="blue", weight=3, opacity=0.6).add_to(m)
 
-# Render map
-st.subheader("지도 (클릭하면 설명 보기)")
+st.subheader("📍 관광지 지도")
 st_folium(m, width=900, height=600)
 
-# Show list of places
-if show_list:
-    st.subheader("Top 10 장소 목록")
-    for i, p in enumerate(PLACES, start=1):
-        st.markdown(f"**{i}. {p['name']}** — {p['desc']}")
+st.subheader("✨ 관광지별 상세 설명")
+for i, p in enumerate(PLACES, start=1):
+    st.markdown(f"**{i}. {p['name']}**  ")
+    st.markdown(f"➡️ {p['desc']}  ")
+    st.markdown(f"🚇 **가장 가까운 지하철역:** {p['station']}  ")
+    st.markdown("---")
 
-# Provide downloadable requirements.txt content
 requirements = """streamlit
 folium
 streamlit-folium
@@ -74,10 +101,9 @@ pandas
 
 st.sidebar.download_button("requirements.txt 다운로드", data=requirements, file_name="requirements.txt", mime="text/plain")
 
-st.info("앱 파일명: streamlit_app.py — 스트림릿 클라우드에 업로드 하고 requirements.txt를 함께 넣으면 바로 작동합니다.")
+st.info("이 코드를 `streamlit_app.py`로 저장하고 `requirements.txt`를 함께 업로드하면 스트림릿 클라우드에서 바로 실행됩니다.")
 
-# --- 아래는 requirements.txt 내용(복사해서 따로 파일로 만드셔도 됩니다) ---
-# requirements.txt
+# --- requirements.txt ---
 # streamlit
 # folium
 # streamlit-folium
