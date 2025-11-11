@@ -10,7 +10,6 @@ def load_data():
     df = pd.read_csv("countriesMBTI_16types.csv")
     return df
 
-# 데이터 로드 시 예외 처리
 try:
     df = load_data()
 except Exception as e:
@@ -19,7 +18,7 @@ except Exception as e:
 
 # 🌍 제목
 st.title("🌎 세계 각국의 MBTI 유형 비율 시각화")
-st.markdown("국가를 선택하면 해당 국가의 **MBTI 16유형 비율**을 볼 수 있습니다.")
+st.markdown("국가를 선택하면 해당 국가의 **MBTI 16유형 비율**과 **MBTI 유형별 국가 비교 그래프**를 볼 수 있습니다.")
 
 # 🏳️ 국가 선택
 countries = sorted(df["Country"].unique().tolist())
@@ -41,20 +40,20 @@ country_df = pd.DataFrame({
 blues = px.colors.sequential.Blues[::-1]
 colors = ["#FF4C4C"] + blues[:len(country_df) - 1]
 
-# 📊 막대그래프 생성
-fig = px.bar(
+# 📊 (1) 선택한 국가의 MBTI 비율 그래프
+fig1 = px.bar(
     country_df,
     x="MBTI",
     y="비율",
     title=f"{selected_country}의 MBTI 비율 분포",
     text=country_df["비율"].apply(lambda x: f"{x*100:.1f}%")
 )
-fig.update_traces(
+fig1.update_traces(
     marker_color=colors,
     hovertemplate="MBTI: %{x}<br>비율: %{y:.2%}",
     textposition="outside"
 )
-fig.update_layout(
+fig1.update_layout(
     xaxis_title="MBTI 유형",
     yaxis_title="비율",
     yaxis_tickformat=".0%",
@@ -63,10 +62,54 @@ fig.update_layout(
     title_font_size=22,
     showlegend=False
 )
+st.plotly_chart(fig1, use_container_width=True)
 
-# ✅ 그래프 출력
-st.plotly_chart(fig, use_container_width=True)
-
-# 📋 데이터 테이블
 with st.expander("📄 데이터 보기"):
     st.dataframe(country_df)
+
+# ------------------------------------------------------------------
+# 📊 (2) MBTI 유형별 국가 순위 그래프
+st.markdown("---")
+st.header("🌐 MBTI 유형별 전 세계 국가 비교")
+
+selected_mbti = st.selectbox("MBTI 유형을 선택하세요", [col for col in df.columns if col != "Country"])
+
+# 해당 MBTI 기준으로 국가별 정렬
+mbti_df = df[["Country", selected_mbti]].sort_values(selected_mbti, ascending=False).reset_index(drop=True)
+
+# 색상 지정 로직
+def get_color(row):
+    if row["Country"] == "South Korea":
+        return "#1E90FF"  # 파랑
+    elif row["Country"] == "Japan":
+        return "#FF4C4C"  # 빨강
+    elif row.name == 0:
+        return "#FFD700"  # 1등 노랑
+    else:
+        return "#D3D3D3"  # 회색
+
+mbti_df["color"] = mbti_df.apply(get_color, axis=1)
+
+# 그래프 생성
+fig2 = px.bar(
+    mbti_df.head(20),  # 상위 20개국 표시
+    x="Country",
+    y=selected_mbti,
+    title=f"{selected_mbti} 유형이 많은 국가 순위 (상위 20개)",
+    text=mbti_df[selected_mbti].head(20).apply(lambda x: f"{x*100:.1f}%")
+)
+fig2.update_traces(
+    marker_color=mbti_df["color"].head(20),
+    hovertemplate="국가: %{x}<br>비율: %{y:.2%}",
+    textposition="outside"
+)
+fig2.update_layout(
+    xaxis_title="국가",
+    yaxis_title=f"{selected_mbti} 비율",
+    yaxis_tickformat=".0%",
+    plot_bgcolor="white",
+    paper_bgcolor="white",
+    title_font_size=22,
+    showlegend=False
+)
+st.plotly_chart(fig2, use_container_width=True)
