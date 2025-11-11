@@ -23,38 +23,36 @@ country_data = df[df["Country"] == selected_country].iloc[0, 1:]  # 첫 행, MBT
 country_df = pd.DataFrame({
     "MBTI": country_data.index,
     "비율": country_data.values
-}).sort_values("비율", ascending=False)
+}).sort_values("비율", ascending=False).reset_index(drop=True)
 
 # 🎨 색상 설정: 1등은 빨강, 나머지는 파랑 그라데이션
-colors = ["#FF4C4C"] + px.colors.sequential.Blues[len(country_df) - 1]
+blues = px.colors.sequential.Blues[::-1]  # 진한 파랑 → 연한 파랑 순서 반전
+colors = ["#FF4C4C"] + blues[:len(country_df) - 1]
 
 # 📊 Plotly 막대그래프
 fig = px.bar(
     country_df,
     x="MBTI",
     y="비율",
-    color=country_df["비율"].rank(ascending=False),
-    color_continuous_scale=["#FF4C4C"] + px.colors.sequential.Blues,
-    title=f"{selected_country}의 MBTI 비율 분포",
+    text=country_df["비율"].apply(lambda x: f"{x*100:.1f}%"),
+    title=f"{selected_country}의 MBTI 비율 분포"
 )
 
+# 막대 색상 수동 지정
 fig.update_traces(
+    marker_color=colors,
     hovertemplate="MBTI: %{x}<br>비율: %{y:.2%}",
-    marker=dict(line=dict(color="white", width=1))
+    textposition="outside"
 )
+
 fig.update_layout(
-    coloraxis_showscale=False,
     xaxis_title="MBTI 유형",
     yaxis_title="비율",
     yaxis_tickformat=".0%",
     plot_bgcolor="white",
     paper_bgcolor="white",
-    title_font_size=20
+    title_font_size=20,
+    showlegend=False
 )
 
-# 📈 그래프 출력
-st.plotly_chart(fig, use_container_width=True)
-
-# 데이터도 표로 보기
-with st.expander("📋 데이터 보기"):
-    st.dataframe(country_df.reset_index(drop=True))
+# 📈 그래프
