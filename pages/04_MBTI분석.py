@@ -77,6 +77,13 @@ selected_mbti = st.selectbox("MBTI 유형을 선택하세요", [col for col in d
 # 해당 MBTI 기준으로 국가별 정렬
 mbti_df = df[["Country", selected_mbti]].sort_values(selected_mbti, ascending=False).reset_index(drop=True)
 
+# 상위 15개 + 한국/일본 추가 (중복 방지)
+top_df = mbti_df.head(15)
+extra_rows = mbti_df[mbti_df["Country"].isin(["South Korea", "Japan"])]
+
+# 중복 제거 후 합치기
+combined_df = pd.concat([top_df, extra_rows]).drop_duplicates(subset=["Country"]).reset_index(drop=True)
+
 # 색상 지정 로직
 def get_color(row):
     if row["Country"] == "South Korea":
@@ -88,28 +95,31 @@ def get_color(row):
     else:
         return "#D3D3D3"  # 회색
 
-mbti_df["color"] = mbti_df.apply(get_color, axis=1)
+combined_df["color"] = combined_df.apply(get_color, axis=1)
 
-# 그래프 생성
+# 📈 (상위 15 + 한국/일본) 가로 막대 그래프
 fig2 = px.bar(
-    mbti_df.head(20),  # 상위 20개국 표시
-    x="Country",
-    y=selected_mbti,
-    title=f"{selected_mbti} 유형이 많은 국가 순위 (상위 20개)",
-    text=mbti_df[selected_mbti].head(20).apply(lambda x: f"{x*100:.1f}%")
+    combined_df,
+    x=selected_mbti,
+    y="Country",
+    orientation="h",
+    title=f"{selected_mbti} 유형이 많은 국가 순위 (상위 15 + 🇰🇷🇯🇵 포함)",
+    text=combined_df[selected_mbti].apply(lambda x: f"{x*100:.1f}%")
 )
 fig2.update_traces(
-    marker_color=mbti_df["color"].head(20),
-    hovertemplate="국가: %{x}<br>비율: %{y:.2%}",
+    marker_color=combined_df["color"],
+    hovertemplate="국가: %{y}<br>비율: %{x:.2%}",
     textposition="outside"
 )
 fig2.update_layout(
-    xaxis_title="국가",
-    yaxis_title=f"{selected_mbti} 비율",
-    yaxis_tickformat=".0%",
+    xaxis_title=f"{selected_mbti} 비율",
+    yaxis_title="국가",
+    yaxis={'categoryorder':'total ascending'},
+    xaxis_tickformat=".0%",
     plot_bgcolor="white",
     paper_bgcolor="white",
     title_font_size=22,
-    showlegend=False
+    showlegend=False,
+    height=700
 )
 st.plotly_chart(fig2, use_container_width=True)
