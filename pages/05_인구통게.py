@@ -49,15 +49,15 @@ df = load_data()
 # ✅ 앱 제목
 # ----------------------------------------
 st.title("🧑‍🤝‍🧑 서울시 행정구별 인구 시각화 (2025년 10월 기준)")
-st.caption("행정구별 연령별 인구 또는 연령대별 인구 비교를 시각화합니다.")
+st.caption("행정구별 연령별 및 연령대별 인구를 시각적으로 확인할 수 있습니다.")
 
 # ----------------------------------------
-# ✅ 탭 만들기
+# ✅ 탭 구성
 # ----------------------------------------
 tab1, tab2 = st.tabs(["📊 행정구별 연령별 인구 (꺾은선)", "🏙️ 연령대별 인구 TOP 구 (막대그래프)"])
 
 # ---------------------------------------------------------------------
-# 📊 탭 1: 행정구 선택 → 꺾은선 그래프
+# 📊 탭 1: 행정구별 꺾은선 그래프
 # ---------------------------------------------------------------------
 with tab1:
     st.subheader("행정구별 연령별 인구 꺾은선 그래프")
@@ -67,8 +67,8 @@ with tab1:
 
     region_data = df[df["행정구역"] == selected_region].iloc[0]
 
-    # 연령별 인구 데이터 추출
-    age_pattern = re.compile(r"2025년10월_계_(\d+세|100세 이상)")
+    # 연령별 컬럼 감지
+    age_pattern = re.compile(r"2025년10월_계_([\d~]+세|100세 이상)")
     age_cols = [col for col in df.columns if age_pattern.match(col)]
 
     ages = []
@@ -90,8 +90,8 @@ with tab1:
     ax.set_xlabel("나이", fontsize=12)
     ax.set_ylabel("인구수", fontsize=12)
 
-    ax.set_xticks(range(0, len(ages), 10))
-    ax.set_xticklabels([ages[i] for i in range(0, len(ages), 10)], rotation=45)
+    ax.set_xticks(range(0, len(ages), 2))
+    ax.set_xticklabels([ages[i] for i in range(0, len(ages), 2)], rotation=45)
 
     ymax = int(max(values)) + 100
     ax.set_yticks(range(0, ymax, 100))
@@ -100,38 +100,50 @@ with tab1:
     st.pyplot(fig)
 
 # ---------------------------------------------------------------------
-# 🏙️ 탭 2: 연령대 선택 → 막대그래프
+# 🏙️ 탭 2: 연령대별 인구 TOP 구 (막대그래프)
 # ---------------------------------------------------------------------
 with tab2:
     st.subheader("연령대별 인구 TOP 행정구")
 
-    # ✅ 0세부터 90세까지 10단위로 선택
-    age_ranges = list(range(0, 100, 10))
-    start_age = st.selectbox("🧍 시작 연령", age_ranges, index=0)
-    end_age = st.selectbox("👵 종료 연령", age_ranges[1:] + [100], index=9)
+    start_age = st.selectbox("🧍 시작 연령", list(range(0, 100, 10)), index=0)
+    end_age = st.selectbox("👵 종료 연령", list(range(10, 101, 10)), index=9)
 
     if end_age <= start_age:
         st.warning("⚠️ 종료 연령은 시작 연령보다 커야 합니다.")
     else:
-        # 해당 연령대 컬럼 추출
-        selected_cols = [col for col in df.columns if any(f"{i}세" in col for i in range(start_age, end_age + 1))]
-        df["선택연령대_인구합계"] = df[selected_cols].sum(axis=1)
+        # ✅ CSV 컬럼 이름에 숫자 범위를 자동으로 인식
+        def get_age_range(col):
+            nums = re.findall(r"\d+", col)
+            return (int(nums[0]), int(nums[-1])) if nums else (None, None)
 
-        # 인구 많은 순 정렬
-        df_sorted = df.sort_values("선택연령대_인구합계", ascending=False)
+        selected_cols = []
+        for col in df.columns:
+            if "2025년10월_계_" in col:
+                a1, a2 = get_age_range(col)
+                if a1 is not None and (
+                    (a1 >= start_age and a1 < end_age)
+                    or (a2 >= start_age and a2 <= end_age)
+                ):
+                    selected_cols.append(col)
 
-        # 그래프
-        plt.style.use("default")
-        fig, ax = plt.subplots(figsize=(10, 6))
-        fig.patch.set_facecolor("#f0f0f0")
-        ax.set_facecolor("#eaeaea")
+        if not selected_cols:
+            st.error("⚠️ 선택한 연령대에 해당하는 데이터가 없습니다. CSV의 연령대 표기를 확인해주세요.")
+        else:
+            df["선택연령대_인구합계"] = df[selected_cols].sum(axis=1)
+            df_sorted = df.sort_values("선택연령대_인구합계", ascending=False)
 
-        ax.bar(df_sorted["행정구역"], df_sorted["선택연령대_인구합계"], color="steelblue")
-        ax.set_title(f"{start_age}세~{end_age}세 인구 많은 행정구", fontsize=16, pad=15)
-        ax.set_xlabel("행정구", fontsize=12)
-        ax.set_ylabel("인구수", fontsize=12)
-        ax.set_yticks(range(0, int(df_sorted['선택연령대_인구합계'].max()) + 100, 100))
-        ax.grid(True, axis="y", color="gray", alpha=0.3)
-        plt.xticks(rotation=45)
+            # 그래프
+            plt.style.use("default")
+            fig, ax = plt.subplots(figsize=(10, 6))
+            fig.patch.set_facecolor("#f0f0f0")
+            ax.set_facecolor("#eaeaea")
 
-        st.pyplot(fig)
+            ax.bar(df_sorted["행정구역"], df_sorted["선택연령대_인구합계"], color="steelblue")
+            ax.set_title(f"{start_age}세~{end_age}세 인구 많은 행정구", fontsize=16, pad=15)
+            ax.set_xlabel("행정구", fontsize=12)
+            ax.set_ylabel("인구수", fontsize=12)
+            ax.set_yticks(range(0, int(df_sorted["선택연령대_인구합계"].max()) + 100, 100))
+            ax.grid(True, axis="y", color="gray", alpha=0.3)
+            plt.xticks(rotation=45)
+
+            st.pyplot(fig)
