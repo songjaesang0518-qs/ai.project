@@ -7,24 +7,32 @@ st.title("서울시 여름철 평균기온 - 위도/경도별 정렬 시각화")
 # CSV 경로 (상위 폴더)
 CSV_PATH = "../서울시 여름철 평균기온 위치정보 (1998~2009년) (좌표계_ WGS1984).csv"
 
-# 데이터 불러오기
+# 데이터 불러오기 함수
 def load_data():
+    # 먼저 로컬 경로 시도
     try:
-        return pd.read_csv(CSV_PATH, encoding="utf-8")
-    except FileNotFoundError:
-        st.warning("CSV 파일을 찾을 수 없습니다. 파일을 업로드해주세요.")
+        df = pd.read_csv(CSV_PATH, encoding="utf-8")
+        if df.empty:
+            raise pd.errors.EmptyDataError
+        return df
+    except (FileNotFoundError, pd.errors.EmptyDataError):
+        st.warning("로컬 CSV 파일을 찾을 수 없거나 비어있습니다. 파일을 업로드해주세요.")
         uploaded_file = st.file_uploader("CSV 파일 업로드", type="csv")
         if uploaded_file is not None:
             try:
-                return pd.read_csv(uploaded_file, encoding="utf-8")
+                df = pd.read_csv(uploaded_file, encoding="utf-8")
             except:
-                return pd.read_csv(uploaded_file, encoding="cp949")
+                df = pd.read_csv(uploaded_file, encoding="cp949")
+            if df.empty:
+                st.error("업로드한 CSV 파일이 비어 있습니다. 다른 파일을 선택해주세요.")
+                return pd.DataFrame()
+            return df
         else:
-            return pd.DataFrame()  # 빈 데이터프레임 반환
+            return pd.DataFrame()  # 빈 데이터 반환
 
 data = load_data()
 
-# 데이터가 없으면 중단
+# 데이터 없으면 종료
 if data.empty:
     st.stop()
 
@@ -40,15 +48,15 @@ sorted_data = data.sort_values(by=sort_col, ascending=True)
 # 정렬된 데이터 표시
 st.dataframe(sorted_data)
 
-# Plotly 시각화 예시
-fig = px.scatter_mapbox(
-    sorted_data,
-    lat="latitude",
-    lon="longitude",
-    color="temperature",  # 컬럼명에 맞게 수정하세요
-    size="temperature",
-    hover_name="location",  # 컬럼명에 맞게 수정하세요
-    zoom=10,
-    mapbox_style="open-street-map"
-)
-st.plotly_chart(fig)
+# Plotly 지도 시각화
+if "latitude" in data.columns and "longitude" in data.columns:
+    fig = px.scatter_mapbox(
+        sorted_data,
+        lat="latitude",
+        lon="longitude",
+        color=sorted_data.columns[2] if len(sorted_data.columns) > 2 else None,  # 임의 컬럼 선택
+        hover_name=sorted_data.columns[0],
+        zoom=10,
+        mapbox_style="open-street-map"
+    )
+    st.plotly_chart(fig)
