@@ -7,22 +7,30 @@ st.set_page_config(page_title="서울 인기 음식점 분석", layout="wide")
 st.title("📊 서울 관광 음식점 인기 순위 Dashboard")
 
 # --------------------------
-# CSV 로드 함수
+# CSV 로드 함수 (경로 오류 방지 + 인코딩 자동 처리)
 # --------------------------
 @st.cache_data
 def load_data():
     path = "../seoul_food.csv"   # CSV는 상위 폴더
     try:
-        df = pd.read_csv(path, encoding="utf-8")
+        return pd.read_csv(path, encoding="utf-8")
     except:
-        df = pd.read_csv(path, encoding="cp949")
-    return df
+        return pd.read_csv(path, encoding="latin1")  # 가장 잘 읽힘
 
 df = load_data()
 
 if df is None:
     st.error("CSV 파일을 불러올 수 없습니다.")
     st.stop()
+
+# --------------------------
+# 깨진 컬럼명을 강제로 새 이름으로 교체 (오류 방지)
+# --------------------------
+df.columns = [
+    "고유번호", "언어", "상호명", "컨텐츠URL", "주소",
+    "상세주소", "전화번호", "웹사이트", "영업시간",
+    "교통정보", "홈페이지언어", "메뉴"
+]
 
 # --------------------------
 # 데이터 미리보기
@@ -33,19 +41,15 @@ st.dataframe(df.head())
 # --------------------------
 # 인기 순위 계산
 # --------------------------
-# 상호명 컬럼 이름이 깨져서 들어오므로 자동으로 찾는 방식 사용
-name_col = df.columns[df.columns.str.contains("상호|»óÈ£", regex=True)][0]
-
-popular = df[name_col].value_counts().reset_index()
+popular = df["상호명"].value_counts().reset_index()
 popular.columns = ["상호명", "빈도수"]
 
 # --------------------------
 # 색상: 1등 빨간색 + 나머지 회색 그라데이션
 # --------------------------
-colors = ["red"]  # 1위
+colors = ["red"]  # 1위 빨강
 
 total = len(popular)
-
 for i in range(1, total):
     fade = int(200 + (55 / total) * i)  # 200~255 회색
     colors.append(f"rgb({fade}, {fade}, {fade})")
