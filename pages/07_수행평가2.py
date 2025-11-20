@@ -2,64 +2,56 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="서울시 여름철 평균기온", layout="wide")
-st.title("서울시 여름철 평균기온 - 위도/경도별 순서 시각화")
+st.set_page_config(page_title="서울시 음식점 인기순위", layout="wide")
 
-# CSV 업로드
-uploaded_file = st.file_uploader("CSV 파일을 업로드하세요", type="csv")
+st.title("📊 서울시 관광 음식점 인기 순위 분석")
 
-if uploaded_file is not None:
-    # CSV 읽기
+# CSV 로드
+@st.cache_data
+def load_data():
+    path = "../서울시 관광 음식.csv"   # 상위 폴더
     try:
-        data = pd.read_csv(uploaded_file, encoding="utf-8")
+        df = pd.read_csv(path, encoding="utf-8")
     except:
-        data = pd.read_csv(uploaded_file, encoding="cp949")
-    
-    if data.empty:
-        st.error("업로드한 CSV 파일이 비어 있습니다. 다른 파일을 선택해주세요.")
-        st.stop()
-    
-    # 사용자 선택: 위도 or 경도
-    option = st.selectbox("정렬 기준을 선택하세요", ["위도", "경도"])
-    sort_col = "latitude" if option == "위도" else "longitude"
+        df = pd.read_csv(path, encoding="cp949")
+    return df
 
-    # 기온 컬럼 자동 찾기
-    temp_col = None
-    for col in data.columns:
-        if "기온" in col or "temp" in col.lower():
-            temp_col = col
-            break
-    if temp_col is None:
-        st.error("CSV에 기온 관련 컬럼이 없습니다.")
-        st.stop()
+df = load_data()
 
-    # 정렬
-    sorted_data = data.sort_values(by=sort_col, ascending=True).reset_index(drop=True)
+st.subheader("데이터 미리보기")
+st.dataframe(df.head())
 
-    # 색상 그라데이션: 1등 빨강, 나머지 흐려지는 회색
-    num_rows = len(sorted_data)
-    colors = ["red"] + ["rgba(128,128,128," + f"{0.8*(1 - i/(num_rows-1))}" + ")" for i in range(1, num_rows)]
+# 인기 기준: 상호명 등장 횟수(언어별 중복 중 가장 많이 언급된 음식점 = 인기)
+popular = df["»óÈ£¸í"].value_counts().reset_index()
+popular.columns = ["상호명", "빈도수"]
 
-    # Plotly 막대그래프
-    fig = go.Figure(go.Bar(
-        x=sorted_data[temp_col],
-        y=sorted_data[sort_col],
-        orientation='h',
-        marker_color=colors,
-        text=sorted_data[temp_col],
-        textposition='auto'
-    ))
+# 색상 지정: 1등 빨간색, 나머지는 회색 → 점점 흐려지는 그라데이션
+colors = ["red"]  # 1위
+total = len(popular)
 
-    fig.update_layout(
-        title=f"{option} 순으로 정렬된 기온",
-        xaxis_title="기온",
-        yaxis_title=option,
-        yaxis=dict(autorange="reversed"),
-        template="plotly_white",
-        height=600
+for i in range(1, total):
+    fade = int(200 + (55 / total) * i)  # 200~255 사이 밝아지는 회색
+    colors.append(f"rgb({fade}, {fade}, {fade})")
+
+# Plotly
+fig = go.Figure()
+
+fig.add_trace(
+    go.Bar(
+        x=popular["상호명"],
+        y=popular["빈도수"],
+        marker=dict(color=colors),
+        hovertemplate="<b>%{x}</b><br>횟수: %{y}<extra></extra>"
     )
+)
 
-    st.plotly_chart(fig, use_container_width=True)
+fig.update_layout(
+    title="⭐ 인기 많은 음식점 순위 (언급 빈도 기준)",
+    xaxis_title="상호명",
+    yaxis_title="등장 횟수",
+    template="simple_white",
+    height=600
+)
 
-else:
-    st.info("CSV 파일을 업로드해야 시각화가 가능합니다.")
+st.plotly_chart(fig, use_container_width=True)
+
