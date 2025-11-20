@@ -1,96 +1,53 @@
 import streamlit as st
 import pandas as pd
-import os
 import plotly.graph_objects as go
+import os
 
-st.set_page_config(page_title="서울 인기 음식점 분석", layout="wide")
-st.title("📊 서울 관광 음식점 인기 순위 Dashboard")
+st.set_page_config(page_title="서울 인기 음식 그래프", layout="wide")
 
-# -----------------------------------------------------
-# 📌 CSV 파일 자동 탐색 함수 (오류 0%)
-# -----------------------------------------------------
-def find_csv():
-    root_path = "/mount/src/ai.project"   # Streamlit Cloud 프로젝트 루트
-    for root, dirs, files in os.walk(root_path):
-        for f in files:
-            if f.lower().endswith(".csv"):
-                return os.path.join(root, f)
-    return None
-
-# -----------------------------------------------------
-# 📌 CSV 로드
-# -----------------------------------------------------
-@st.cache_data
+# --------------------------------------
+# 🔥 CSV 불러오기 (상위 폴더)
+# --------------------------------------
 def load_data():
-    csv_path = find_csv()
+    # 현재 파일 위치 기준으로 CSV 경로 설정
+    current_dir = os.path.dirname(__file__)
+    csv_path = os.path.join(current_dir, "..", "seoul_food.csv")
 
-    if csv_path is None:
-        st.error("❌ CSV 파일을 프로젝트 전체에서 찾지 못했습니다.")
-        return None
-
-    st.success(f"📁 CSV 파일 찾음: {csv_path}")
-
-    try:
-        return pd.read_csv(csv_path, encoding="utf-8")
-    except:
-        return pd.read_csv(csv_path, encoding="latin1")
+    return pd.read_csv(csv_path, encoding="utf-8")
 
 df = load_data()
 
-if df is None:
-    st.stop()
+st.title("🍽 서울 관광 인기 음식 순위 시각화")
+st.write("CSV 데이터 기반으로 인기 많은 순서대로 인터렉티브 그래프를 표시합니다.")
 
+# --------------------------------------
+# 🔥 인기 순 정렬
+# --------------------------------------
+df_sorted = df.sort_values(by="인기도", ascending=False).reset_index(drop=True)
 
-# -----------------------------------------------------
-# 📌 컬럼명 강제 재정의 (깨짐 방지)
-# -----------------------------------------------------
-df.columns = [
-    "고유번호", "언어", "상호명", "컨텐츠URL", "주소",
-    "상세주소", "전화번호", "웹사이트", "영업시간",
-    "교통정보", "홈페이지언어", "메뉴"
-]
+# --------------------------------------
+# 🔥 색상 설정 (1등=빨간색, 이후 회색 → 연한 회색 그라데이션)
+# --------------------------------------
+colors = ["red"] + [f"rgba(128,128,128,{0.9 - i*0.05})" for i in range(len(df_sorted)-1)]
 
-# -----------------------------------------------------
-# 📌 데이터 미리보기
-# -----------------------------------------------------
-st.subheader("데이터 미리보기")
-st.dataframe(df.head())
-
-# -----------------------------------------------------
-# 📌 인기순 정렬
-# -----------------------------------------------------
-popular = df["상호명"].value_counts().reset_index()
-popular.columns = ["상호명", "빈도수"]
-
-# -----------------------------------------------------
-# 📌 색상: 1등 빨강 + 회색 그라데이션
-# -----------------------------------------------------
-colors = ["red"]
-total = len(popular)
-
-for i in range(1, total):
-    fade = int(200 + (55 / total) * i)
-    colors.append(f"rgb({fade}, {fade}, {fade})")
-
-# -----------------------------------------------------
-# 📌 Plotly 그래프
-# -----------------------------------------------------
+# --------------------------------------
+# 🔥 Plotly 막대 그래프
+# --------------------------------------
 fig = go.Figure()
 
 fig.add_trace(
     go.Bar(
-        x=popular["상호명"],
-        y=popular["빈도수"],
-        marker=dict(color=colors),
-        hovertemplate="<b>%{x}</b><br>언급 횟수: %{y}<extra></extra>"
+        x=df_sorted["음식명"],
+        y=df_sorted["인기도"],
+        marker=dict(color=colors)
     )
 )
 
 fig.update_layout(
-    title="⭐ 서울시 인기 음식점 순위 (언급 횟수 기준)",
-    xaxis_title="상호명",
-    yaxis_title="언급 횟수",
-    template="simple_white",
+    title="서울 인기 음식 순위",
+    xaxis_title="음식명",
+    yaxis_title="인기도",
+    template="plotly_white",
     height=600
 )
 
